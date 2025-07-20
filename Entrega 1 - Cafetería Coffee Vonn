@@ -1,0 +1,51 @@
+CREATE TABLE Producto (
+    id_producto INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    precio DECIMAL(10, 2) NOT NULL,
+    categoria VARCHAR(50)
+);
+
+CREATE TABLE Mesa (
+    id_mesa INT PRIMARY KEY AUTO_INCREMENT,
+    numero INT NOT NULL,
+    capacidad INT NOT NULL,
+    ubicacion VARCHAR(50)
+);
+
+CREATE TABLE Empleado (
+    id_empleado INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    rol VARCHAR(50),
+    fecha_contratacion DATE
+);
+
+CREATE TABLE Pedido (
+    id_pedido INT PRIMARY KEY AUTO_INCREMENT,
+    fecha_hora DATETIME NOT NULL,
+    id_mesa INT,
+    id_empleado INT,
+    estado VARCHAR(50),
+    FOREIGN KEY (id_mesa) REFERENCES Mesa(id_mesa),
+    FOREIGN KEY (id_empleado) REFERENCES Empleado(id_empleado)
+);
+
+CREATE TABLE DetallePedido (
+    id_detalle INT PRIMARY KEY AUTO_INCREMENT,
+    id_pedido INT,
+    id_producto INT,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10, 2),
+    FOREIGN KEY (id_pedido) REFERENCES Pedido(id_pedido),
+    FOREIGN KEY (id_producto) REFERENCES Producto(id_producto)
+);
+
+CREATE TABLE Pago (
+    id_pago INT PRIMARY KEY AUTO_INCREMENT,
+    id_pedido INT,
+    monto_total DECIMAL(10, 2) NOT NULL,
+    metodo_pago VARCHAR(50),
+    fecha_pago DATETIME,
+    FOREIGN KEY (id_pedido) REFERENCES Pedido(id_pedido)
+);
