@@ -1,3 +1,7 @@
+CREATE SCHEMA cafeteria;
+USE cafeteria;
+SET AUTOCOMMIT=0;
+
 CREATE TABLE Producto (
     id_producto INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) NOT NULL,
