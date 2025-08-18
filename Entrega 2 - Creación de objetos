@@ -1,0 +1,123 @@
+USE cafeteria;
+
+-- ------------------------------------------------------------------
+-- FUNCIÓN: total del pedido (suma de cantidad * precio_unitario)
+-- ------------------------------------------------------------------
+DELIMITER $$
+DROP FUNCTION IF EXISTS fn_total_pedido $$
+CREATE FUNCTION fn_total_pedido(p_id_pedido INT)
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+  DECLARE v_total DECIMAL(10,2);
+  SELECT IFNULL(SUM(cantidad * COALESCE(precio_unitario, 0)), 0)
+    INTO v_total
+    FROM DetallePedido
+   WHERE id_pedido = p_id_pedido;
+  RETURN v_total;
+END $$
+DELIMITER ;
+
+-- ------------------------------------------------------------------
+-- VISTA 1: Pedidos pendientes con total estimado
+-- ------------------------------------------------------------------
+CREATE OR REPLACE VIEW vw_pedidos_pendientes AS
+SELECT
+  p.id_pedido,
+  p.fecha_hora,
+  m.numero           AS mesa,
+  CONCAT(e.nombre, ' ', e.apellido) AS mesero,
+  p.estado,
+  fn_total_pedido(p.id_pedido)      AS total_estimado
+FROM Pedido p
+LEFT JOIN Mesa m      ON p.id_mesa = m.id_mesa
+LEFT JOIN Empleado e  ON p.id_empleado = e.id_empleado
+WHERE COALESCE(p.estado, '') NOT IN ('Cerrado', 'Cancelado');
+
+-- ------------------------------------------------------------------
+-- VISTA 2: Ventas por categoría (solo pedidos pagados)
+-- ------------------------------------------------------------------
+CREATE OR REPLACE VIEW vw_ventas_por_categoria AS
+SELECT
+  DATE(pa.fecha_pago)                          AS fecha,
+  pr.categoria                                 AS categoria,
+  SUM(dp.cantidad * dp.precio_unitario)        AS total_ventas,
+  SUM(dp.cantidad)                             AS items_vendidos,
+  COUNT(DISTINCT p.id_pedido)                  AS pedidos
+FROM Pago pa
+JOIN Pedido p       ON pa.id_pedido = p.id_pedido
+JOIN DetallePedido dp ON dp.id_pedido = p.id_pedido
+JOIN Producto pr    ON pr.id_producto = dp.id_producto
+GROUP BY DATE(pa.fecha_pago), pr.categoria;
+
+-- ------------------------------------------------------------------
+-- PROCEDIMIENTO: Cerrar pedido (crea pago y actualiza estado)
+-- ------------------------------------------------------------------
+DELIMITER $$
+DROP PROCEDURE IF EXISTS sp_cerrar_pedido $$
+CREATE PROCEDURE sp_cerrar_pedido(IN p_id_pedido INT, IN p_metodo_pago VARCHAR(50))
+BEGIN
+  DECLARE v_total DECIMAL(10,2);
+  DECLARE v_pago_existente INT DEFAULT 0;
+
+  START TRANSACTION;
+
+  -- Verifica si ya existe un pago para ese pedido
+  SELECT COUNT(*) INTO v_pago_existente
+    FROM Pago
+   WHERE id_pedido = p_id_pedido;
+
+  IF v_pago_existente > 0 THEN
+    -- Si ya tiene pago, solo asegura el estado
+    UPDATE Pedido
+       SET estado = 'Cerrado'
+     WHERE id_pedido = p_id_pedido;
+    COMMIT;
+  ELSE
+    -- Calcula total, inserta pago y cierra pedido
+    SET v_total = fn_total_pedido(p_id_pedido);
+
+    INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+    VALUES (p_id_pedido, v_total, p_metodo_pago, NOW());
+
+    UPDATE Pedido
+       SET estado = 'Cerrado'
+     WHERE id_pedido = p_id_pedido;
+
+    COMMIT;
+  END IF;
+END $$
+DELIMITER ;
+
+-- ------------------------------------------------------------------
+-- TRIGGER: Completar precio_unitario desde Producto al insertar detalle
+-- ------------------------------------------------------------------
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS trg_dp_set_precio $$
+CREATE TRIGGER trg_dp_set_precio
+BEFORE INSERT ON DetallePedido
+FOR EACH ROW
+BEGIN
+  DECLARE v_precio DECIMAL(10,2);
+
+  -- Solo completar si no vino el precio en el INSERT
+  IF NEW.precio_unitario IS NULL THEN
+    SELECT p.precio
+      INTO v_precio
+      FROM Producto p
+     WHERE p.id_producto = NEW.id_producto
+     LIMIT 1;
+
+    -- Si no existe el producto o no tiene precio, lanzar error
+    IF v_precio IS NULL THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'No se encontró precio para el id_producto indicado';
+    END IF;
+
+    SET NEW.precio_unitario = v_precio;
+  END IF;
+END $$
+
+DELIMITER ;
