@@ -1,0 +1,180 @@
+USE cafetería;
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+
+-- =========================
+-- Productos 
+-- =========================
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Espresso','Café espresso simple', 2000.00,'Bebidas Calientes');
+SET @p_espresso = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Cappuccino','Espresso con leche espumosa', 2800.00,'Bebidas Calientes');
+SET @p_cappuccino = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Latte','Espresso con leche', 3000.00,'Bebidas Calientes');
+SET @p_latte = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Té Negro','Té negro caliente', 1500.00,'Bebidas Calientes');
+SET @p_te_negro = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Jugo de Naranja','Jugo natural', 2500.00,'Bebidas Frías');
+SET @p_jugo = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Croissant','Hojaldre de mantequilla', 1800.00,'Pastelería');
+SET @p_croissant = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Muffin de Arándanos','Muffin dulce', 2000.00,'Pastelería');
+SET @p_muffin = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Sándwich de Pavo','Pavo, queso y verduras', 4500.00,'Sándwiches');
+SET @p_sandwich = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Ensalada César','Clásica con aderezo césar', 5500.00,'Ensaladas');
+SET @p_ensalada = LAST_INSERT_ID();
+
+INSERT INTO Producto (nombre, descripcion, precio, categoria)
+VALUES ('Agua Mineral','Botella 500ml', 1200.00,'Bebidas Frías');
+SET @p_agua = LAST_INSERT_ID();
+
+-- =========================
+-- Mesas
+-- =========================
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (1,2,'Ventana'); SET @m1 = LAST_INSERT_ID();
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (2,4,'Terraza'); SET @m2 = LAST_INSERT_ID();
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (3,2,'Interior'); SET @m3 = LAST_INSERT_ID();
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (4,6,'Interior'); SET @m4 = LAST_INSERT_ID();
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (5,4,'Terraza'); SET @m5 = LAST_INSERT_ID();
+INSERT INTO Mesa (numero, capacidad, ubicacion) VALUES (6,2,'Ventana'); SET @m6 = LAST_INSERT_ID();
+
+-- =========================
+-- Empleados
+-- =========================
+INSERT INTO Empleado (nombre, apellido, rol, fecha_contratacion)
+VALUES ('Camila','Soto','Mesero/a','2024-11-10'); SET @e_camila = LAST_INSERT_ID();
+INSERT INTO Empleado (nombre, apellido, rol, fecha_contratacion)
+VALUES ('Diego','Rivas','Barista','2024-12-01'); SET @e_diego = LAST_INSERT_ID();
+INSERT INTO Empleado (nombre, apellido, rol, fecha_contratacion)
+VALUES ('Valentina','Paredes','Cajero/a','2025-01-15'); SET @e_valentina = LAST_INSERT_ID();
+INSERT INTO Empleado (nombre, apellido, rol, fecha_contratacion)
+VALUES ('Mateo','González','Mesero/a','2025-05-20'); SET @e_mateo = LAST_INSERT_ID();
+INSERT INTO Empleado (nombre, apellido, rol, fecha_contratacion)
+VALUES ('Fernanda','Silva','Barista','2025-03-03'); SET @e_fernanda = LAST_INSERT_ID();
+
+-- =========================
+-- Pedidos (16-17 Ago 2025)
+-- =========================
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-16 09:20:00', @m1, @e_camila, 'cerrado'); SET @ped1 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-16 10:05:00', @m3, @e_mateo, 'cerrado'); SET @ped2 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-16 12:30:00', @m4, @e_camila, 'cerrado'); SET @ped3 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-16 15:10:00', @m2, @e_camila, 'servido'); SET @ped4 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-17 08:55:00', @m5, @e_mateo, 'cerrado'); SET @ped5 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-17 09:40:00', @m6, @e_camila, 'en preparación'); SET @ped6 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-17 12:15:00', @m2, @e_mateo, 'cerrado'); SET @ped7 = LAST_INSERT_ID();
+
+INSERT INTO Pedido (fecha_hora, id_mesa, id_empleado, estado)
+VALUES ('2025-08-17 13:50:00', @m1, @e_fernanda, 'pendiente'); SET @ped8 = LAST_INSERT_ID();
+
+-- =========================
+-- Detalles por pedido
+-- =========================
+-- Pedido 1: 2 Espresso, 1 Croissant
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped1, @p_espresso, 2, (SELECT precio FROM Producto WHERE id_producto=@p_espresso));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped1, @p_croissant, 1, (SELECT precio FROM Producto WHERE id_producto=@p_croissant));
+
+-- Pedido 2: 1 Cappuccino, 1 Muffin, 1 Agua
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped2, @p_cappuccino, 1, (SELECT precio FROM Producto WHERE id_producto=@p_cappuccino));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped2, @p_muffin, 1, (SELECT precio FROM Producto WHERE id_producto=@p_muffin));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped2, @p_agua, 1, (SELECT precio FROM Producto WHERE id_producto=@p_agua));
+
+-- Pedido 3: 2 Sándwich, 1 Jugo, 1 Latte
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped3, @p_sandwich, 2, (SELECT precio FROM Producto WHERE id_producto=@p_sandwich));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped3, @p_jugo, 1, (SELECT precio FROM Producto WHERE id_producto=@p_jugo));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped3, @p_latte, 1, (SELECT precio FROM Producto WHERE id_producto=@p_latte));
+
+-- Pedido 4: 1 Ensalada, 1 Té Negro
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped4, @p_ensalada, 1, (SELECT precio FROM Producto WHERE id_producto=@p_ensalada));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped4, @p_te_negro, 1, (SELECT precio FROM Producto WHERE id_producto=@p_te_negro));
+
+-- Pedido 5: 1 Latte, 1 Croissant, 1 Agua
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped5, @p_latte, 1, (SELECT precio FROM Producto WHERE id_producto=@p_latte));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped5, @p_croissant, 1, (SELECT precio FROM Producto WHERE id_producto=@p_croissant));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped5, @p_agua, 1, (SELECT precio FROM Producto WHERE id_producto=@p_agua));
+
+-- Pedido 6: 2 Cappuccino
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped6, @p_cappuccino, 2, (SELECT precio FROM Producto WHERE id_producto=@p_cappuccino));
+
+-- Pedido 7: 1 Sándwich, 1 Ensalada, 2 Jugos, 2 Aguas
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped7, @p_sandwich, 1, (SELECT precio FROM Producto WHERE id_producto=@p_sandwich));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped7, @p_ensalada, 1, (SELECT precio FROM Producto WHERE id_producto=@p_ensalada));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped7, @p_jugo, 2, (SELECT precio FROM Producto WHERE id_producto=@p_jugo));
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped7, @p_agua, 2, (SELECT precio FROM Producto WHERE id_producto=@p_agua));
+
+-- Pedido 8: 1 Espresso (pendiente)
+INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+VALUES (@ped8, @p_espresso, 1, (SELECT precio FROM Producto WHERE id_producto=@p_espresso));
+
+-- =========================
+-- Pagos
+-- =========================
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+SELECT @ped1, SUM(cantidad * precio_unitario), 'Tarjeta', '2025-08-16 09:45:00'
+FROM DetallePedido WHERE id_pedido = @ped1;
+
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+SELECT @ped2, SUM(cantidad * precio_unitario), 'Efectivo', '2025-08-16 10:25:00'
+FROM DetallePedido WHERE id_pedido = @ped2;
+
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+SELECT @ped3, SUM(cantidad * precio_unitario), 'Tarjeta', '2025-08-16 12:55:00'
+FROM DetallePedido WHERE id_pedido = @ped3;
+
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+SELECT @ped5, SUM(cantidad * precio_unitario), 'Tarjeta', '2025-08-17 09:10:00'
+FROM DetallePedido WHERE id_pedido = @ped5;
+
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+SELECT @ped7, SUM(cantidad * precio_unitario), 'Transferencia', '2025-08-17 12:45:00'
+FROM DetallePedido WHERE id_pedido = @ped7;
+
+-- Confirmar
+COMMIT;
