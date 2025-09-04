@@ -1,7 +1,7 @@
 USE cafeteria;
 
 -- ------------------------------------------------------------------
--- FUNCIÓN: total del pedido (suma de cantidad * precio_unitario)
+-- FUNCIÓN 1: total del pedido (suma de cantidad * precio_unitario)
 -- ------------------------------------------------------------------
 DELIMITER $$
 DROP FUNCTION IF EXISTS fn_total_pedido $$
@@ -18,6 +18,26 @@ BEGIN
   RETURN v_total;
 END $$
 DELIMITER ;
+
+-- ------------------------------------------------------------------
+-- FUNCIÓN 2: Devuelve la cantidad total de ítems (sumatoria de unidades pedidas) en un pedido.
+-- ------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS fn_items_pedido $$
+CREATE FUNCTION fn_items_pedido(p_id_pedido INT)
+RETURNS INT
+DETERMINISTIC
+READS SQL DATA
+BEGIN
+DECLARE v_items INT;
+SELECT IFNULL(SUM(cantidad), 0)
+INTO v_items
+FROM DetallePedido
+WHERE id_pedido = p_id_pedido;
+RETURN v_items;
+END $$
+DELIMITER ;
+
 
 -- ------------------------------------------------------------------
 -- VISTA 1: Pedidos pendientes con total estimado
@@ -52,7 +72,65 @@ JOIN Producto pr    ON pr.id_producto = dp.id_producto
 GROUP BY DATE(pa.fecha_pago), pr.categoria;
 
 -- ------------------------------------------------------------------
--- PROCEDIMIENTO: Cerrar pedido (crea pago y actualiza estado)
+-- VISTA 3:  Lista las reservas futuras (desde el momento actual), mostrando cliente, mesa, cantidad de personas y estado.
+-- ------------------------------------------------------------------
+CREATE OR REPLACE VIEW vw_reservas_proximas AS
+SELECT
+r.id_reserva,
+r.fecha_hora,
+CONCAT(c.nombre, ' ', c.apellido) AS cliente,
+m.numero AS mesa,
+r.numero_personas,
+r.estado
+FROM Reserva r
+LEFT JOIN Cliente c ON r.id_cliente = c.id_cliente
+LEFT JOIN Mesa m ON r.id_mesa = m.id_mesa
+WHERE r.fecha_hora >= NOW()
+AND COALESCE(r.estado, '') NOT IN ('Cancelada', 'Cancelado');
+-- ------------------------------------------------------------------
+-- VISTA 4:  Resume las ventas pagadas por fecha y producto, con total vendido, ítems y cantidad de pedidos.
+-- ------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW vw_ventas_por_producto AS
+SELECT
+DATE(pa.fecha_pago) AS fecha,
+pr.id_producto,
+pr.nombre AS producto,
+SUM(dp.cantidad * dp.precio_unitario) AS total_ventas,
+SUM(dp.cantidad) AS items_vendidos,
+COUNT(DISTINCT p.id_pedido) AS pedidos
+FROM Pago pa
+JOIN Pedido p ON pa.id_pedido = p.id_pedido
+JOIN DetallePedido dp ON dp.id_pedido = p.id_pedido
+JOIN Producto pr ON pr.id_producto = dp.id_producto
+GROUP BY DATE(pa.fecha_pago), pr.id_producto, pr.nombre;
+
+-- ------------------------------------------------------------------
+-- VISTA 5:  Catálogo de productos con precio, stock actual (si existe en inventario), etiqueta de disponibilidad y bandera de reposición.
+-- ------------------------------------------------------------------
+CREATE OR REPLACE VIEW vw_catalogo_productos AS
+SELECT
+pr.id_producto,
+pr.nombre,
+pr.categoria,
+pr.precio,
+pr.descripcion,
+COALESCE(inv.cantidad_disponible, 0) AS stock_actual,
+inv.fecha_actualizacion AS inventario_actualizado,
+CASE
+WHEN COALESCE(inv.cantidad_disponible, 0) > 0 THEN 'Disponible'
+ELSE 'Sin stock'
+END AS disponibilidad,
+CASE
+WHEN COALESCE(inv.cantidad_disponible, 0) <= 5 THEN 'Reponer'
+ELSE 'OK'
+END AS estado_reposicion
+FROM Producto pr
+LEFT JOIN Inventario inv
+ON inv.id_producto = pr.id_producto;
+
+-- ------------------------------------------------------------------
+-- PROCEDIMIENTO 1: Cerrar pedido (crea pago y actualiza estado)
 -- ------------------------------------------------------------------
 DELIMITER $$
 DROP PROCEDURE IF EXISTS sp_cerrar_pedido $$
@@ -91,7 +169,77 @@ END $$
 DELIMITER ;
 
 -- ------------------------------------------------------------------
--- TRIGGER: Completar precio_unitario desde Producto al insertar detalle
+-- PROCEDIMIENTO 2: Verifica que haya stock suficiente para cada ítem del pedido, bloquea las filas de inventario, descuenta las cantidades, inserta el pago y cambia el estado del pedido a “Cerrado” en una única transacción.
+-- ------------------------------------------------------------------
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS sp_confirmar_pedido $$
+CREATE PROCEDURE sp_confirmar_pedido(
+IN p_id_pedido INT,
+IN p_metodo_pago VARCHAR(50)
+)
+BEGIN
+DECLARE v_total DECIMAL(10,2);
+DECLARE v_faltantes INT DEFAULT 0;
+DECLARE v_pago_existente INT DEFAULT 0;
+
+START TRANSACTION;
+
+/* 1) Evita doble cobro */
+SELECT COUNT(*) INTO v_pago_existente
+FROM Pago
+WHERE id_pedido = p_id_pedido;
+
+IF v_pago_existente > 0 THEN
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El pedido ya tiene un pago registrado.';
+END IF;
+
+/* 2) Verifica stock suficiente por cada producto */
+/* Si algún producto no existe en Inventario, se considera 0 disponible */
+SELECT COUNT(*) INTO v_faltantes
+FROM DetallePedido dp
+LEFT JOIN Inventario i
+ON i.id_producto = dp.id_producto
+WHERE dp.id_pedido = p_id_pedido
+AND COALESCE(i.cantidad_disponible, 0) < dp.cantidad;
+
+IF v_faltantes > 0 THEN
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Stock insuficiente para uno o más productos del pedido.';
+END IF;
+
+/* 3) Bloquea filas de inventario involucradas para evitar carreras de concurrencia */
+/* El SELECT FOR UPDATE bloquea únicamente los ítems del pedido */
+SELECT 1
+FROM Inventario i
+JOIN DetallePedido dp ON dp.id_producto = i.id_producto
+WHERE dp.id_pedido = p_id_pedido
+FOR UPDATE;
+
+/* 4) Descarga stock (operación set-based) */
+UPDATE Inventario i
+JOIN DetallePedido dp
+ON dp.id_producto = i.id_producto
+SET i.cantidad_disponible = i.cantidad_disponible - dp.cantidad
+WHERE dp.id_pedido = p_id_pedido;
+
+/* 5) Calcula total e inserta el pago */
+SET v_total = fn_total_pedido(p_id_pedido);
+
+INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
+VALUES (p_id_pedido, v_total, p_metodo_pago, NOW());
+
+/* 6) Cierra el pedido */
+UPDATE Pedido
+SET estado = 'Cerrado'
+WHERE id_pedido = p_id_pedido;
+
+COMMIT;
+END $$
+
+DELIMITER ;
+
+-- ------------------------------------------------------------------
+-- TRIGGER 1: Completar precio_unitario desde Producto al insertar detalle
 -- ------------------------------------------------------------------
 DELIMITER $$
 
@@ -118,6 +266,60 @@ BEGIN
 
     SET NEW.precio_unitario = v_precio;
   END IF;
+END $$
+
+DELIMITER ;
+
+-- ------------------------------------------------------------------
+-- TRIGGER 2: Al insertar un pago, valida que el pedido exista y no tenga pagos previos, completa fecha_pago si viene nula y marca el pedido como “Cerrado” (salvo que esté “Cancelado”).
+-- ------------------------------------------------------------------
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS trg_pago_validar_y_cerrar $$
+CREATE TRIGGER trg_pago_validar_y_cerrar
+BEFORE INSERT ON Pago
+FOR EACH ROW
+BEGIN
+DECLARE v_count INT DEFAULT 0;
+DECLARE v_estado_actual VARCHAR(50);
+
+/* 1) Validar que el pedido exista */
+SELECT estado
+INTO v_estado_actual
+FROM Pedido
+WHERE id_pedido = NEW.id_pedido
+LIMIT 1;
+
+IF v_estado_actual IS NULL THEN
+SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'El pedido indicado no existe.';
+END IF;
+
+/* 2) Impedir pagos duplicados para el mismo pedido */
+SELECT COUNT(*)
+INTO v_count
+FROM Pago
+WHERE id_pedido = NEW.id_pedido;
+
+IF v_count > 0 THEN
+SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'El pedido ya tiene un pago registrado.';
+END IF;
+
+/* 3) Completar fecha de pago si no viene informada */
+IF NEW.fecha_pago IS NULL THEN
+SET NEW.fecha_pago = NOW();
+END IF;
+
+/* 4) Cerrar el pedido, salvo que esté cancelado */
+IF COALESCE(v_estado_actual, '') = 'Cancelado' THEN
+SIGNAL SQLSTATE '45000'
+SET MESSAGE_TEXT = 'No se puede registrar pago para un pedido Cancelado.';
+ELSE
+UPDATE Pedido
+SET estado = 'Cerrado'
+WHERE id_pedido = NEW.id_pedido;
+END IF;
 END $$
 
 DELIMITER ;
