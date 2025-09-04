@@ -176,5 +176,80 @@ INSERT INTO Pago (id_pedido, monto_total, metodo_pago, fecha_pago)
 SELECT @ped7, SUM(cantidad * precio_unitario), 'Transferencia', '2025-08-17 12:45:00'
 FROM DetallePedido WHERE id_pedido = @ped7;
 
+-- =========================
+-- Clientes 
+-- =========================
+INSERT INTO Cliente (nombre, apellido, telefono, email, fecha_registro)
+VALUES ('Lucía','Cáceres','+56 9 1111 1111','lucia.caceres@example.com','2025-07-30'); SET @c_lucia = LAST_INSERT_ID();
+
+INSERT INTO Cliente (nombre, apellido, telefono, email, fecha_registro)
+VALUES ('Tomás','Reyes','+56 9 2222 2222','tomas.reyes@example.com','2025-08-01'); SET @c_tomas = LAST_INSERT_ID();
+
+INSERT INTO Cliente (nombre, apellido, telefono, email, fecha_registro)
+VALUES ('Isabella','Muñoz','+56 9 3333 3333','isabella.munoz@example.com','2025-08-05'); SET @c_isabella = LAST_INSERT_ID();
+
+INSERT INTO Cliente (nombre, apellido, telefono, email, fecha_registro)
+VALUES ('Nicolás','Contreras','+56 9 4444 4444','nicolas.contreras@example.com','2025-08-10'); SET @c_nicolas = LAST_INSERT_ID();
+
+INSERT INTO Cliente (nombre, apellido, telefono, email, fecha_registro)
+VALUES ('Sofía','Vega','+56 9 5555 5555','sofia.vega@example.com','2025-08-12'); SET @c_sofia = LAST_INSERT_ID();
+
+-- =========================
+-- Reservas 
+-- =========================
+-- (Fechas cercanas a los pedidos para coherencia)
+INSERT INTO Reserva (id_cliente, id_mesa, fecha_hora, numero_personas, estado)
+VALUES (@c_lucia,  @m2, '2025-08-16 11:45:00', 2, 'asistió'); SET @r1 = LAST_INSERT_ID();
+
+INSERT INTO Reserva (id_cliente, id_mesa, fecha_hora, numero_personas, estado)
+VALUES (@c_tomas,  @m5, '2025-08-17 08:45:00', 4, 'asistió'); SET @r2 = LAST_INSERT_ID();
+
+INSERT INTO Reserva (id_cliente, id_mesa, fecha_hora, numero_personas, estado)
+VALUES (@c_isabella, @m1, '2025-08-17 13:30:00', 1, 'pendiente'); SET @r3 = LAST_INSERT_ID();
+
+INSERT INTO Reserva (id_cliente, id_mesa, fecha_hora, numero_personas, estado)
+VALUES (@c_nicolas, @m4, '2025-08-18 12:00:00', 3, 'cancelada'); SET @r4 = LAST_INSERT_ID();
+
+INSERT INTO Reserva (id_cliente, id_mesa, fecha_hora, numero_personas, estado)
+VALUES (@c_sofia,   @m3, '2025-08-18 17:30:00', 2, 'confirmada'); SET @r5 = LAST_INSERT_ID();
+
+-- =========================
+-- Proveedores 
+-- =========================
+INSERT INTO Proveedor (nombre, contacto, telefono, direccion)
+VALUES ('Café Andino SpA','María Torres','+56 2 2222 0001','Av. Providencia 1234, Santiago'); SET @prov_andino = LAST_INSERT_ID();
+
+INSERT INTO Proveedor (nombre, contacto, telefono, direccion)
+VALUES ('Panificados La Huerta','Juan Pérez','+56 2 2222 0002','Av. Italia 456, Santiago'); SET @prov_huerta = LAST_INSERT_ID();
+
+INSERT INTO Proveedor (nombre, contacto, telefono, direccion)
+VALUES ('Bebidas del Sur Ltda.','Carla Díaz','+56 2 2222 0003','Camino El Alba 789, Las Condes'); SET @prov_bebidas = LAST_INSERT_ID();
+
+-- =========================
+-- Inventario 
+-- =========================
+-- Cantidades de ejemplo a la fecha de los pedidos
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_espresso,   300, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_cappuccino, 250, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_latte,      240, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_te_negro,   200, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_jugo,       180, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_croissant,  120, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_muffin,     110, '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_sandwich,   90,  '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_ensalada,   75,  '2025-08-16 08:00:00');
+INSERT INTO Inventario (id_producto, cantidad_disponible, fecha_actualizacion)
+VALUES (@p_agua,       400, '2025-08-16 08:00:00');
+
+
 -- Confirmar
 COMMIT;
